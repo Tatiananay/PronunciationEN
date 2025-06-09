@@ -1,9 +1,9 @@
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
-import torchaudio
+import torchaudio #MAnejo de audio con PyToorch
 import torch
-import subprocess
-import sounddevice as sd
-from scipy.io.wavfile import write
+import subprocess #Comandos para espeak
+import sounddevice as sd #Grabar audio
+from scipy.io.wavfile import write 
 import pronouncing
 import re
 import whisper
@@ -11,7 +11,7 @@ import difflib
 from jiwer import wer, cer
 from matplotlib import pyplot as plt
 import torch.nn.functional as F
-import noisereduce as nr
+import noisereduce as nr #PAra eliminar ruido del audio
 
 
 # ---------- CONFIGURACION ----------
@@ -24,15 +24,43 @@ ARCHIVO_SALIDA = "grabacion.wav"
 def grabar_audio(duracion, archivo_salida):
     try:
         print(f"\nIniciando grabación: {duracion} segundos...")
-        frecuencia_muestreo = 16000
-        audio = sd.rec(int(duracion * frecuencia_muestreo), samplerate=frecuencia_muestreo, channels=1, dtype='int16')
-        sd.wait()
+        #Teorema de Nyquist-Shannon: la frecuencia de muestreo debe ser al menos el doble de la frecuencia máxima del sonido a grabar
+        frecuencia_muestreo = 18000 #Recomendado para voz 16
+        audio = sd.rec(int(duracion * frecuencia_muestreo), #Numero total de muestras por gabrar  
+                       samplerate=frecuencia_muestreo, #Numero de muestras por segundo
+                       channels=1, 
+                       dtype='int16') #Permite capturar suficientes detalles sin ocupar demasiado espacio
+        sd.wait() 
         write(archivo_salida, frecuencia_muestreo, audio)
         print("Grabación realizada.")
     except Exception as error:
         print(f"Error al grabar audio: {error}")
         return False
     return True
+
+def grabar_audio_tiempo_real():
+    try:
+        print("presione s para detener la grabación")
+        frecuencia_muestreo = 16000
+        duracion_bloque = 5  # Duración de cada bloque en segundos
+        audio = []
+
+        while True:
+            if keyboard.is_pressed('s'):
+                print("Grabación detenida.")
+                break
+            bloque = sd.rec(int(duracion_bloque * frecuencia_muestreo), 
+                            samplerate=frecuencia_muestreo, 
+                            channels=1, 
+                            dtype='int16')
+            sd.wait()
+            audio.append(bloque)
+
+        audio = np.concatenate(audio, axis=0)
+        return audio, frecuencia_muestreo
+    except Exception as error:
+        print(f"Error al grabar audio en tiempo real: {error}")
+        return None, None
 
 # ---------- OBTENER FONEMAS (espeak-ng) ----------
 
@@ -119,9 +147,14 @@ def graficar_confianza(logits, ids_predichos, procesador):
 if __name__ == "__main__":
 
     grabar_audio(DURACION, ARCHIVO_SALIDA)
-
-    # Cargar el audio
     signal, frecuencia = torchaudio.load(ARCHIVO_SALIDA)
+
+    #Grabar en memoria experimental
+    #audior, frecuencia = grabar_audio_tiempo_real()
+    #if audior is None:
+    #    exit()
+
+    #audio_tensor = torch.tensor(audior, dtype=torch.float32).squeeze().unsqueeze(0)/32768.0  # Normalizar a rango [-1, 1]
 
     # Reducción de ruido
     #audio_denoised = nr.reduce_noise(y=signal[0].numpy(), sr=frecuencia)
