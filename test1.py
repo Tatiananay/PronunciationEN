@@ -38,6 +38,7 @@ def grabar_audio(duracion, archivo_salida):
         return False
     return True
 
+#---------- GRABAR AUDIO EN TIEMPO REAL (experimental) ----------
 def grabar_audio_tiempo_real():
     try:
         print("presione s para detener la grabación")
@@ -64,24 +65,39 @@ def grabar_audio_tiempo_real():
 
 # ---------- OBTENER FONEMAS (espeak-ng) ----------
 
+#Espeak convierte de texto a fonemas (Se puede borrar xd)
+# -q es para que no hable, -x es para que devuelva los fonemas
 def obtener_fonemas(texto):
     try:
         resultado = subprocess.run(['espeak-ng', '-q', '-x', texto], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return resultado.stdout.strip()
+        return resultado.stdout.strip() #Se limpia el resultado de espacios de inicio al final
     except Exception as error:
         return None
-
+    
+#---------- OBTENER ARPAbet (CMUdict) ----------
 def obtener_arpabet(texto):
-    palabras = texto.lower().split()
+    palabras = texto.lower().split() # divide el txto en palabras y lo convierte en minpusculas3
     transcripcion_arpabet = []
     for palabra in palabras:
-        fonemas = pronouncing.phones_for_word(palabra)
+        fonemas = pronouncing.phones_for_word(palabra) # devuelve fonemas ARPAbet 
         if fonemas:
-            sin_estres = re.sub(r'\d', '', fonemas[0])
+            sin_estres = re.sub(r'\d', '', fonemas[0]) 
             transcripcion_arpabet.append(sin_estres)
         else:
             transcripcion_arpabet.append("[NA]")
     return '.'.join(transcripcion_arpabet)
+
+# ---------- CARGAR MODELOS ----------
+
+def cargar_modelos():
+    print("Cargando modelos...")
+    modelo_whisper = whisper.load_model("base") 
+
+    nombre_modelo = "jonatasgrosman/wav2vec2-large-xlsr-53-english"
+    procesador = Wav2Vec2Processor.from_pretrained(nombre_modelo)
+    modelo_wav2vec = Wav2Vec2ForCTC.from_pretrained(nombre_modelo)
+
+    return modelo_whisper, procesador, modelo_wav2vec
 
 # ---------- TRANSCRIBIR CON WHISPER ----------
 
@@ -104,20 +120,9 @@ def resaltar_diferencias(esperado, actual):
         elif d.startswith("+ "):
             print("Palabra de más:", d[2:])
 
-# ---------- CARGAR MODELOS ----------
-
-def cargar_modelos():
-    print("Cargando modelos...")
-    modelo_whisper = whisper.load_model("base")
-
-    nombre_modelo = "jonatasgrosman/wav2vec2-large-xlsr-53-english"
-    procesador = Wav2Vec2Processor.from_pretrained(nombre_modelo)
-    modelo_wav2vec = Wav2Vec2ForCTC.from_pretrained(nombre_modelo)
-
-    return modelo_whisper, procesador, modelo_wav2vec
-
 # ---------- COMPARACION DETALLADA ----------
 
+#usa jiwer
 def comparacion_detallada(esperado, actual):
     print(f"\nAnálisis detallado:")
     print(f"Dicho: {esperado}")
@@ -128,6 +133,7 @@ def comparacion_detallada(esperado, actual):
     palabras_esperadas = esperado.lower().split()
     palabras_actuales = actual.lower().split()
 
+#-----------GRAFICAR RUIDO ----------
 def graficar_confianza(logits, ids_predichos, procesador):
     probabilidades = F.softmax(logits, dim=-1)
     max_probabilidades = probabilidades.max(dim=-1).values.squeeze().detach().cpu().numpy()
@@ -142,7 +148,7 @@ def graficar_confianza(logits, ids_predichos, procesador):
     plt.grid(True)
     plt.show()
 
-# ---------- PROCESO PRINCIPAL ----------
+# ---------- MAIN ----------
 
 if __name__ == "__main__":
 
@@ -162,6 +168,7 @@ if __name__ == "__main__":
     # Convertir de nuevo a tensor
     #signal = torch.tensor(audio_denoised).unsqueeze(0)
 
+    # Covierte el audio a 16kHz si no lo es
     if frecuencia != 16000:
         signal = torchaudio.transforms.Resample(orig_freq=frecuencia, new_freq=16000)(signal)
 
@@ -170,6 +177,7 @@ if __name__ == "__main__":
 
     # Transcripción con wav2vec2
     print("Transcribiendo...")
+    
     entradas = procesador(signal[0], sampling_rate=16000, return_tensors="pt", padding=True)
     with torch.no_grad():
         logits = modelo_wav2vec(**entradas).logits
@@ -189,6 +197,7 @@ if __name__ == "__main__":
     print("\nTranscripción con Whisper:", transcripcion_whisper)
 
     comparacion_detallada(texto_transcrito, transcripcion_whisper)
+    
     logits = modelo_wav2vec(**entradas).logits
     ids_predichos = torch.argmax(logits, dim=-1)
 
