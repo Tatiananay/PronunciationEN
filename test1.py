@@ -76,20 +76,23 @@ def grabar_audio_tiempo_real(nombre_archivo="grabacion.wav"):
 
         # Reducción de ruido
         print("Reduciendo ruido...")
-        audio_sin_ruido = nr.reduce_noise(y=audio_np, sr=frecuencia_muestreo)
+        #audio_sin_ruido = nr.reduce_noise(y=audio_np, sr=frecuencia_muestreo)
 
         # Normalización
-        audio_normalizado = normalizar_audio(audio_sin_ruido)
+        #audio_normalizado = normalizar_audio(audio_sin_ruido)
 
         # Filtrado de frecuencias
-        audio_filtrado = aplicar_bandpass(audio_normalizado, frecuencia_muestreo)
+        #audio_filtrado = aplicar_bandpass(audio_normalizado, frecuencia_muestreo)
 
         # Convertir a int16 para guardar WAV
-        audio_int16 = np.int16(audio_filtrado * 32767)
-        write(nombre_archivo, frecuencia_muestreo, audio_int16)
+        #audio_int16 = np.int16(audio_filtrado * 32767)
+        write(nombre_archivo, frecuencia_muestreo, audio_np)
 
         print("Grabación mejorada guardada.")
-        return audio_int16, frecuencia_muestreo
+        debug_audio(audio_np, frecuencia_muestreo)
+
+        return audio_np, frecuencia_muestreo
+    
 
     except Exception as e:
         print(f"Error en la grabación mejorada: {e}")
@@ -102,7 +105,7 @@ def grabar_audio_tiempo_real(nombre_archivo="grabacion.wav"):
 def obtener_fonemas(texto):
     try:
         resultado = subprocess.run(['espeak-ng', '-q', '-x', texto], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return resultado.stdout.strip() #Se limpia el resultado de espacios de inicio al final
+        return resultado.stdout.strip() #Se limpia el resultado de espacios de inicio al finals
     except Exception as error:
         return None
     
@@ -165,6 +168,15 @@ def comparacion_detallada(esperado, actual):
     palabras_esperadas = esperado.lower().split()
     palabras_actuales = actual.lower().split()
 
+def debug_audio(audio, fs):
+    print(f"Amplitud máx: {np.max(audio):.4f}, min: {np.min(audio):.4f}, media: {np.mean(audio):.4f}")
+    plt.figure(figsize=(10, 3))
+    plt.plot(audio)
+    plt.title("Forma de onda del audio")
+    plt.xlabel("Muestras")
+    plt.ylabel("Amplitud")
+    plt.grid(True)
+    plt.show()
 #-----------GRAFICAR RUIDO ----------
 def graficar_confianza(logits, ids_predichos, procesador):
     probabilidades = F.softmax(logits, dim=-1)
@@ -216,7 +228,7 @@ if __name__ == "__main__":
     print()
 
     # Transcripción con Whisper
-    transcripcion_whisper = transcribir_con_whisper(ARCHIVO_SALIDA)
+    transcripcion_whisper =transcribir_con_whisper(ARCHIVO_SALIDA)
     print("\nTranscripción con Whisper:", transcripcion_whisper)
 
     comparacion_detallada(texto_transcrito, transcripcion_whisper)
@@ -225,3 +237,4 @@ if __name__ == "__main__":
     ids_predichos = torch.argmax(logits, dim=-1)
 
     graficar_confianza(logits, ids_predichos, procesador)
+    
