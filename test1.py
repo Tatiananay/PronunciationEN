@@ -12,7 +12,9 @@ from jiwer import wer, cer
 from matplotlib import pyplot as plt
 import torch.nn.functional as F
 import noisereduce as nr #PAra eliminar ruido del audio
-
+import keyboard  # Agregado para detectar teclas
+import numpy as np  # Agregado para concatenar arrays
+from scipy.signal import butter, lfilter
 
 # ---------- CONFIGURACION ----------
 
@@ -37,30 +39,60 @@ def grabar_audio(duracion, archivo_salida):
         print(f"Error al grabar audio: {error}")
         return False
     return True
+def butter_bandpass(lowcut, highcut, fs, order=6):
+    nyq = 0.5 * fs
+    b, a = butter(order, [lowcut / nyq, highcut / nyq], btype='band')
+    return b, a
+
+def aplicar_bandpass(data, fs):
+    b, a = butter_bandpass(300, 3400, fs)
+    y = lfilter(b, a, data)
+    return y
+
+# -------- NORMALIZAR AUDIO --------
+
+def normalizar_audio(audio):
+    max_valor = np.max(np.abs(audio))
+    if max_valor == 0:
+        return audio
+    return audio / max_valor
 
 #---------- GRABAR AUDIO EN TIEMPO REAL (experimental) ----------
-def grabar_audio_tiempo_real():
+def grabar_audio_tiempo_real(nombre_archivo="grabacion.wav"):
     try:
-        print("presione s para detener la grabación")
+        print("Presione 's' para detener la grabación.")
         frecuencia_muestreo = 16000
-        duracion_bloque = 5  # Duración de cada bloque en segundos
-        audio = []
+        audio_total = []
 
-        while True:
-            if keyboard.is_pressed('s'):
-                print("Grabación detenida.")
-                break
-            bloque = sd.rec(int(duracion_bloque * frecuencia_muestreo), 
-                            samplerate=frecuencia_muestreo, 
-                            channels=1, 
-                            dtype='int16')
-            sd.wait()
-            audio.append(bloque)
+        def callback(indata, frames, time, status):
+            audio_total.append(indata.copy())
 
-        audio = np.concatenate(audio, axis=0)
-        return audio, frecuencia_muestreo
-    except Exception as error:
-        print(f"Error al grabar audio en tiempo real: {error}")
+        with sd.InputStream(samplerate=frecuencia_muestreo, channels=1, dtype='float32', callback=callback):
+            while not keyboard.is_pressed('s'):
+                sd.sleep(100)  # verifica cada 0.1 seg si presionaron 's'
+
+        # Concatenar bloques grabados
+        audio_np = np.concatenate(audio_total, axis=0).flatten()
+
+        # Reducción de ruido
+        print("Reduciendo ruido...")
+        audio_sin_ruido = nr.reduce_noise(y=audio_np, sr=frecuencia_muestreo)
+
+        # Normalización
+        audio_normalizado = normalizar_audio(audio_sin_ruido)
+
+        # Filtrado de frecuencias
+        audio_filtrado = aplicar_bandpass(audio_normalizado, frecuencia_muestreo)
+
+        # Convertir a int16 para guardar WAV
+        audio_int16 = np.int16(audio_filtrado * 32767)
+        write(nombre_archivo, frecuencia_muestreo, audio_int16)
+
+        print("Grabación mejorada guardada.")
+        return audio_int16, frecuencia_muestreo
+
+    except Exception as e:
+        print(f"Error en la grabación mejorada: {e}")
         return None, None
 
 # ---------- OBTENER FONEMAS (espeak-ng) ----------
@@ -76,7 +108,7 @@ def obtener_fonemas(texto):
     
 #---------- OBTENER ARPAbet (CMUdict) ----------
 def obtener_arpabet(texto):
-    palabras = texto.lower().split() # divide el txto en palabras y lo convierte en minpusculas3
+    palabras = texto.lower().split() # divide el texto en palabras y lo convierte en minusculas
     transcripcion_arpabet = []
     for palabra in palabras:
         fonemas = pronouncing.phones_for_word(palabra) # devuelve fonemas ARPAbet 
@@ -152,23 +184,14 @@ def graficar_confianza(logits, ids_predichos, procesador):
 
 if __name__ == "__main__":
 
-    grabar_audio(DURACION, ARCHIVO_SALIDA)
-    signal, frecuencia = torchaudio.load(ARCHIVO_SALIDA)
-
-    #Grabar en memoria experimental
-    #audior, frecuencia = grabar_audio_tiempo_real()
-    #if audior is None:
-    #    exit()
-
-    #audio_tensor = torch.tensor(audior, dtype=torch.float32).squeeze().unsqueeze(0)/32768.0  # Normalizar a rango [-1, 1]
-
-    # Reducción de ruido
-    #audio_denoised = nr.reduce_noise(y=signal[0].numpy(), sr=frecuencia)
-
-    # Convertir de nuevo a tensor
-    #signal = torch.tensor(audio_denoised).unsqueeze(0)
-
-    # Covierte el audio a 16kHz si no lo es
+    audio_data, frecuencia = grabar_audio_tiempo_real()
+    if audio_data is None:
+        print("Error en la grabación continua")
+        exit()
+        
+    # Guardar el audio continuo
+    write(ARCHIVO_SALIDA, frecuencia, audio_data)
+    signal = torch.tensor(audio_data.flatten(), dtype=torch.float32).unsqueeze(0)
     if frecuencia != 16000:
         signal = torchaudio.transforms.Resample(orig_freq=frecuencia, new_freq=16000)(signal)
 
@@ -176,7 +199,7 @@ if __name__ == "__main__":
     modelo_whisper, procesador, modelo_wav2vec = cargar_modelos()
 
     # Transcripción con wav2vec2
-    print("Transcribiendo...")
+    print("Transcribiendo")
     
     entradas = procesador(signal[0], sampling_rate=16000, return_tensors="pt", padding=True)
     with torch.no_grad():
@@ -201,5 +224,4 @@ if __name__ == "__main__":
     logits = modelo_wav2vec(**entradas).logits
     ids_predichos = torch.argmax(logits, dim=-1)
 
-    # Llamar a la funcion
     graficar_confianza(logits, ids_predichos, procesador)
