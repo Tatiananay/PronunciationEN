@@ -1,0 +1,22 @@
+# Modelos y procesamiento de lenguaje
+transformers==4.41.2
+# Audio y Deep Learning
+torch==2.3.0
+torchaudio==2.3.0
+# Grabación y procesamiento de audio
+sounddevice==0.4.6
+scipy==1.13.1
+# Para guardar archivos .wav
+numpy==1.26.4
+# Procesamiento de texto y fonética
+pronouncing==0.2.0
+# Reconocimiento de voz con Whisper
+openai-whisper==20231117
+# Cálculo de errores
+jiwer==3.0.3
+# Visualización
+matplotlib==3.8.4
+# Reducción de ruido
+noisereduce==3.0.4
+# Utilidades generales
+requests==2.31.0
