@@ -98,8 +98,10 @@ async def transcribe_raw(
         os.remove(tmp_path)
 
         # ——— Fonemas y métricas ———
-        ph_es = obtener_fonemas_espeak(text_w2v)
-        ph_ar = obtener_arpabet(text_w2v)
+        ph_es_wav2 = obtener_fonemas_espeak(text_w2v)
+        ph_ar_wav2 = obtener_arpabet(text_w2v)
+        ph_es_whisper = obtener_fonemas_espeak(text_whisper)
+        ph_ar_whisper = obtener_arpabet(text_whisper)
         met_wer = wer(text_w2v, text_whisper)
         met_cer = cer(text_w2v, text_whisper)
 
@@ -113,8 +115,10 @@ async def transcribe_raw(
     return JSONResponse({
         "wav2vec_text": text_w2v,
         "whisper_text": text_whisper,
-        "phonemes_espeak": ph_es,
-        "phonemes_arpabet": ph_ar,
+        "phonemes_espeak_wav2": ph_es_wav2,
+        "phonemes_arpabet_wav2": ph_ar_wav2,
+        "phonemes_espeak_whisper": ph_es_whisper,
+        "phonemes_arpabet_whisper": ph_ar_whisper,
         "wer": met_wer,
         "cer": met_cer,
     })
