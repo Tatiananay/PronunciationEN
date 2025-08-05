@@ -17,6 +17,6 @@ jiwer==3.0.3
 # Visualización
 matplotlib==3.8.4
 # Reducción de ruido
-noisereduce==3.0.4
+noisereduce==3.0.3
 # Utilidades generales
 requests==2.31.0
