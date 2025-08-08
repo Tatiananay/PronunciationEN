@@ -24,3 +24,4 @@ requests==2.31.0
 fastapi==0.115.12
 uvicorn==0.34.2
 gunicorn==23.0.0
+python-multipart==0.0.20
