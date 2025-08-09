@@ -31,8 +31,10 @@ app.add_middleware(
 class TranscriptionResult(BaseModel):
     wav2vec_text: str
     whisper_text: str
-    phonemes_espeak: str
-    phonemes_arpabet: str
+    phonemes_espeak_wav2: str
+    phonemes_espeak_whisper: str
+    phonemes_arpabet_whisper: str
+    phonemes_arpabet_wav2: str
     wer: float
     cer: float
 
@@ -100,6 +102,8 @@ async def transcribe_raw(file: UploadFile = File(...)):  # ← CAMBIAR A UploadF
 
         ph_es_wav2 = obtener_fonemas_espeak(text_w2v)
         ph_ar_wav2 = obtener_arpabet(text_w2v)
+        ph_es_whisper = obtener_fonemas_espeak(text_whisper)
+        ph_ar_whisper = obtener_arpabet(text_whisper)
         met_wer = wer(text_w2v, text_whisper)
         met_cer = cer(text_w2v, text_whisper)
 
@@ -110,14 +114,16 @@ async def transcribe_raw(file: UploadFile = File(...)):  # ← CAMBIAR A UploadF
         raise HTTPException(status_code=500, detail=f"Error al procesar audio: {e}")
 
     # ← CAMBIAR LA RESPUESTA PARA QUE COINCIDA CON EL MODELO
-    return {
+    return JSONResponse({
         "wav2vec_text": text_w2v,
         "whisper_text": text_whisper,
-        "phonemes_espeak": ph_es_wav2,
-        "phonemes_arpabet": ph_ar_wav2,
+        "phonemes_espeak_wav2": ph_es_wav2,
+        "phonemes_arpabet_wav2": ph_ar_wav2,
+        "phonemes_espeak_whisper": ph_es_whisper,
+        "phonemes_arpabet_whisper": ph_ar_whisper,
         "wer": met_wer,
         "cer": met_cer,
-    }
+    })
 
 def generar_confianza_png(logits, ids, processor) -> io.BytesIO:
     probs = F.softmax(logits, dim=-1).max(dim=-1).values.squeeze().detach().cpu().numpy()
